@@ -90,7 +90,7 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 
 	req, err := http.NewRequest(p.proxyMethod, p.proxyURL, r.Body)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Printf("ERROR ID=%v: %s\n", sessionID, err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -106,7 +106,7 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Printf("ERROR ID=%v: %s\n", sessionID, err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -118,7 +118,7 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(resp.Body)
 
 	if err != nil {
-		fmt.Println(err)
+		fmt.Printf("ERROR ID=%v: %s\n", sessionID, err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
