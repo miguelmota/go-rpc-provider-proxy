@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -69,7 +70,14 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	p.sessionID++
 
 	sessionID := p.sessionID
-	requestBody, err := ioutil.ReadAll(r.Body)
+
+	bodyBuf, _ := ioutil.ReadAll(r.Body)
+
+	// make copies
+	bodyRdr1 := ioutil.NopCloser(bytes.NewBuffer(bodyBuf))
+	bodyRdr2 := ioutil.NopCloser(bytes.NewBuffer(bodyBuf))
+
+	requestBody, err := ioutil.ReadAll(bodyRdr1)
 	if err != nil {
 		fmt.Printf("ERROR ID=%v: %s\n", sessionID, err)
 		http.Error(w, "", http.StatusInternalServerError)
@@ -95,7 +103,7 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req, err := http.NewRequest(p.proxyMethod, p.proxyURL, r.Body)
+	req, err := http.NewRequest(p.proxyMethod, p.proxyURL, bodyRdr2)
 	if err != nil {
 		fmt.Printf("ERROR ID=%v: %s\n", sessionID, err)
 		http.Error(w, "", http.StatusInternalServerError)
