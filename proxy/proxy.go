@@ -59,6 +59,18 @@ func (p *Proxy) PingHandler(w http.ResponseWriter, r *http.Request) {
 
 // ProxyHandler ...
 func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "OPTIONS" {
+		w.Header().Del("Access-Control-Allow-Credentials")
+		w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization,Accept,Origin,DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Content-Range,Range")
+		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,OPTIONS,PUT,DELETE,PATCH")
+		w.Header().Set("Access-Control-Max-Age", "1728000")
+		w.Header().Set("Content-Type", "text/plain charset=UTF-8")
+		w.Header().Set("Content-Length", "0")
+		w.WriteHeader(204)
+		return
+	}
+
 	if r.Method != p.proxyMethod {
 		http.Error(w, "Not supported", http.StatusNotFound)
 		return
@@ -77,8 +89,6 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Access-Control", "application/json")
-	req.Header.Set("Access-Control-Allow-Origin", req.Header.Get("Origin"))
 	req.Header.Del("Host")
 	req.Header.Del("Content-Length")
 
@@ -105,7 +115,11 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set(k, v[0])
 	}
 
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
+	w.Header().Del("Access-Control-Allow-Credentials")
+	w.Header().Set("Access-Control-Allow-Origin", req.Header.Get("Origin"))
+	w.Header().Set("Access-Control-Allow-Headers", "Authorization,Accept,Origin,DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Content-Range,Range")
+	w.Header().Set("Access-Control-Allow-Methods", "GET,POST,OPTIONS,PUT,DELETE,PATCH")
+
 	w.WriteHeader(200)
 	w.Write(body)
 }
