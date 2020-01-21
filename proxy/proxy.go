@@ -18,6 +18,7 @@ type Proxy struct {
 	maxIdleConnections int
 	requestTimeout     int
 	method             string
+	sessionID          int
 }
 
 // Config ...
@@ -49,6 +50,7 @@ func NewProxy(config *Config) *Proxy {
 		proxyMethod:        method,
 		maxIdleConnections: 100,
 		requestTimeout:     3600,
+		sessionID:          0,
 	}
 }
 
@@ -64,6 +66,11 @@ func (p *Proxy) HealthCheckHandler(w http.ResponseWriter, r *http.Request) {
 
 // ProxyHandler ...
 func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
+	p.sessionID++
+
+	sessionID := p.sessionID
+	fmt.Printf("REQUEST ID=%v: %s [%s] %s %s %s\n", sessionID, r.RemoteAddr, time.Now().String(), r.Method, r.URL.String(), r.UserAgent())
+
 	if r.Method == "OPTIONS" {
 		w.Header().Del("Access-Control-Allow-Credentials")
 		w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
@@ -124,6 +131,8 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", req.Header.Get("Origin"))
 	w.Header().Set("Access-Control-Allow-Headers", "Authorization,Accept,Origin,DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Content-Range,Range")
 	w.Header().Set("Access-Control-Allow-Methods", "GET,POST,OPTIONS,PUT,DELETE,PATCH")
+
+	fmt.Printf("RESPONSE ID=%v: %s [%s] %v %s %s %s\n", sessionID, r.RemoteAddr, time.Now().String(), resp.StatusCode, r.Method, r.URL, body)
 
 	w.WriteHeader(200)
 	w.Write(body)
