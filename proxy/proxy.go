@@ -57,6 +57,11 @@ func (p *Proxy) PingHandler(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, "pong")
 }
 
+// HealthCheckHandler ...
+func (p *Proxy) HealthCheckHandler(w http.ResponseWriter, r *http.Request) {
+	io.WriteString(w, "OK")
+}
+
 // ProxyHandler ...
 func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "OPTIONS" {
@@ -135,6 +140,7 @@ func (p *Proxy) Start() error {
 
 	host := "0.0.0.0:" + p.port
 	http.HandleFunc("/ping", p.PingHandler)
+	http.HandleFunc("/health", p.HealthCheckHandler)
 	http.HandleFunc("/", p.ProxyHandler)
 
 	fmt.Printf("Proxying %s %s\n", p.proxyMethod, p.proxyURL)
