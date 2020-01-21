@@ -69,7 +69,14 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	p.sessionID++
 
 	sessionID := p.sessionID
-	fmt.Printf("REQUEST ID=%v: %s [%s] %s %s %s\n", sessionID, r.RemoteAddr, time.Now().String(), r.Method, r.URL.String(), r.UserAgent())
+	requestBody, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		fmt.Printf("ERROR ID=%v: %s\n", sessionID, err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Printf("REQUEST ID=%v: %s [%s] %s %s %s %s\n", sessionID, r.RemoteAddr, time.Now().String(), r.Method, r.URL.String(), r.UserAgent(), string(requestBody))
 
 	if r.Method == "OPTIONS" {
 		w.Header().Del("Access-Control-Allow-Credentials")
