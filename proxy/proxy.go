@@ -20,6 +20,7 @@ type Proxy struct {
 	requestTimeout     int
 	method             string
 	sessionID          int
+	logLevel           string
 }
 
 // Config ...
@@ -27,6 +28,7 @@ type Config struct {
 	ProxyURL    string
 	ProxyMethod string
 	Port        string
+	LogLevel    string
 }
 
 // NewProxy ...
@@ -52,6 +54,7 @@ func NewProxy(config *Config) *Proxy {
 		maxIdleConnections: 100,
 		requestTimeout:     3600,
 		sessionID:          0,
+		logLevel:           config.LogLevel,
 	}
 }
 
@@ -84,7 +87,9 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Printf("REQUEST ID=%v: %s [%s] %s %s %s %s\n", sessionID, r.RemoteAddr, time.Now().String(), r.Method, r.URL.String(), r.UserAgent(), string(requestBody))
+	if p.logLevel == "debug" {
+		fmt.Printf("REQUEST ID=%v: %s [%s] %s %s %s %s\n", sessionID, r.RemoteAddr, time.Now().String(), r.Method, r.URL.String(), r.UserAgent(), string(requestBody))
+	}
 
 	if r.Method == "OPTIONS" {
 		w.Header().Del("Access-Control-Allow-Credentials")
@@ -147,7 +152,9 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Headers", "Authorization,Accept,Origin,DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Content-Range,Range")
 	w.Header().Set("Access-Control-Allow-Methods", "GET,POST,OPTIONS,PUT,DELETE,PATCH")
 
-	fmt.Printf("RESPONSE ID=%v: %s [%s] %v %s %s %s\n", sessionID, r.RemoteAddr, time.Now().String(), resp.StatusCode, r.Method, r.URL, body)
+	if p.logLevel == "debug" {
+		fmt.Printf("RESPONSE ID=%v: %s [%s] %v %s %s %s\n", sessionID, r.RemoteAddr, time.Now().String(), resp.StatusCode, r.Method, r.URL, body)
+	}
 
 	w.WriteHeader(200)
 	w.Write(body)

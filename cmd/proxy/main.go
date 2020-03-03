@@ -10,10 +10,12 @@ func main() {
 	var port string
 	var proxyURL string
 	var proxyMethod string
+	var logLevel string
 
 	flag.StringVar(&port, "port", "8000", "Server port")
 	flag.StringVar(&proxyURL, "proxy-url", "", "Proxy URL")
 	flag.StringVar(&proxyMethod, "proxy-method", "", "Proxy method")
+	flag.StringVar(&logLevel, "log-level", "", "Log level")
 	flag.Parse()
 
 	if proxyURL == "" {
@@ -24,6 +26,7 @@ func main() {
 		ProxyURL:    proxyURL,
 		ProxyMethod: proxyMethod,
 		Port:        port,
+		LogLevel:    logLevel,
 	})
 
 	panic(rpcProxy.Start())
