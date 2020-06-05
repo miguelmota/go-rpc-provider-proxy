@@ -78,6 +78,7 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	p.sessionID++
 	sessionID := p.sessionID
 
+	// check base64 encoded bearer token if auth check enabled
 	if p.authorizationSecret != "" {
 		reqToken := r.Header.Get("Authorization")
 		splitToken := strings.Split(reqToken, "Bearer")
@@ -89,7 +90,13 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		reqToken = strings.TrimSpace(splitToken[1])
-		decoded, _ := base64.StdEncoding.DecodeString(reqToken)
+		decoded, err := base64.StdEncoding.DecodeString(reqToken)
+		if err != nil {
+			fmt.Printf("ERROR ID=%v: %s\n", sessionID, err)
+			http.Error(w, "", http.StatusUnauthorized)
+			return
+		}
+
 		decodedToken := string(decoded)
 		if p.authorizationSecret != decodedToken {
 			err := errors.New("Unauthorized: Invalid auth token")
