@@ -2,6 +2,8 @@ package proxy
 
 import (
 	"bytes"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -12,23 +14,25 @@ import (
 
 // Proxy ...
 type Proxy struct {
-	httpClient         *http.Client
-	proxyURL           string
-	proxyMethod        string
-	port               string
-	maxIdleConnections int
-	requestTimeout     int
-	method             string
-	sessionID          int
-	logLevel           string
+	httpClient          *http.Client
+	proxyURL            string
+	proxyMethod         string
+	port                string
+	maxIdleConnections  int
+	requestTimeout      int
+	method              string
+	sessionID           int
+	logLevel            string
+	authorizationSecret string
 }
 
 // Config ...
 type Config struct {
-	ProxyURL    string
-	ProxyMethod string
-	Port        string
-	LogLevel    string
+	ProxyURL            string
+	ProxyMethod         string
+	Port                string
+	LogLevel            string
+	AuthorizationSecret string
 }
 
 // NewProxy ...
@@ -48,13 +52,14 @@ func NewProxy(config *Config) *Proxy {
 	}
 
 	return &Proxy{
-		port:               port,
-		proxyURL:           config.ProxyURL,
-		proxyMethod:        method,
-		maxIdleConnections: 100,
-		requestTimeout:     3600,
-		sessionID:          0,
-		logLevel:           config.LogLevel,
+		port:                port,
+		proxyURL:            config.ProxyURL,
+		proxyMethod:         method,
+		maxIdleConnections:  100,
+		requestTimeout:      3600,
+		sessionID:           0,
+		logLevel:            config.LogLevel,
+		authorizationSecret: config.AuthorizationSecret,
 	}
 }
 
@@ -71,8 +76,28 @@ func (p *Proxy) HealthCheckHandler(w http.ResponseWriter, r *http.Request) {
 // ProxyHandler ...
 func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	p.sessionID++
-
 	sessionID := p.sessionID
+
+	if p.authorizationSecret != "" {
+		reqToken := r.Header.Get("Authorization")
+		splitToken := strings.Split(reqToken, "Bearer")
+		if (len(splitToken)) != 2 {
+			err := errors.New("Unauthorized: Auth token is required")
+			fmt.Printf("ERROR ID=%v: %s\n", sessionID, err)
+			http.Error(w, "", http.StatusUnauthorized)
+			return
+		}
+
+		reqToken = strings.TrimSpace(splitToken[1])
+		decoded, _ := base64.StdEncoding.DecodeString(reqToken)
+		decodedToken := string(decoded)
+		if p.authorizationSecret != decodedToken {
+			err := errors.New("Unauthorized: Invalid auth token")
+			fmt.Printf("ERROR ID=%v: %s\n", sessionID, err)
+			http.Error(w, "", http.StatusUnauthorized)
+			return
+		}
+	}
 
 	bodyBuf, _ := ioutil.ReadAll(r.Body)
 
