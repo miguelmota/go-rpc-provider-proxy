@@ -14,7 +14,7 @@ docker-image-build:
 
 .PHONY: docker-image-run
 docker-image-run:
-	docker run -p 8000:8000 authereum/rpc-provider-proxy ./goproxy -proxy-url="https://kovan.infura.io/v3/5d032c26ce724ae5aa8f569a307256d8" -proxy-method=POST
+	docker run -p 8000:8000 authereum/rpc-provider-proxy ./goproxy -proxy-url="https://kovan.authereum.com" -proxy-method=POST
 
 .PHONY: docker-image-tag
 docker-image-tag:
@@ -27,3 +27,6 @@ docker-registry-push:
 	$(eval REV=$(shell git rev-parse HEAD | cut -c1-7))
 	docker push 874777227511.dkr.ecr.us-east-1.amazonaws.com/authereum/rpc-provider-proxy:latest
 	docker push 874777227511.dkr.ecr.us-east-1.amazonaws.com/authereum/rpc-provider-proxy:$(REV)
+
+.PHONY: docker-build-and-push
+docker-build-and-push: docker-registry-login docker-image-build docker-image-tag docker-registry-push
