@@ -6,7 +6,7 @@
 
 ```bash
 # terminal 1
-$ go run cmd/proxy/main.go -proxy-url="https://kovan.rpc.authereum.com" -proxy-method=POST -port=800
+$ go run cmd/proxy/main.go -proxy-url="https://kovan.rpc.authereum.com" -proxy-method=POST -port=8000
 Proxying POST https://kovan.rpc.authereum.com/
 Listening on port 8000
 
@@ -18,7 +18,7 @@ Authorization header example:
 
 ```bash
 # terminal 1
-$ go run cmd/proxy/main.go -proxy-url="https://kovan.rpc.authereum.com" -proxy-method=POST -port=800 -auth-secret=mysecret
+$ go run cmd/proxy/main.go -proxy-url="https://kovan.rpc.authereum.com" -proxy-method=POST -port=8000 -auth-secret=mysecret
 
 # terminal 2
 $ echo -n mysecret | openssl base64

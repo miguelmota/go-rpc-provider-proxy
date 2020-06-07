@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"os"
 
 	proxy "github.com/authereum/go-rpc-provider-proxy/proxy"
 )
@@ -12,6 +13,16 @@ func main() {
 	var proxyMethod string
 	var logLevel string
 	var authorizationSecret string
+
+	portEnv := os.Getenv("PORT")
+	if portEnv != "" {
+		port = portEnv
+	}
+
+	authSecretEnv := os.Getenv("AUTH_SECRET")
+	if authSecretEnv != "" {
+		authorizationSecret = authSecretEnv
+	}
 
 	flag.StringVar(&port, "port", "8000", "Server port")
 	flag.StringVar(&proxyURL, "proxy-url", "", "Proxy URL")
