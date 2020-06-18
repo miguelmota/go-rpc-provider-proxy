@@ -20,15 +20,12 @@ func main() {
 	}
 
 	authSecretEnv := os.Getenv("AUTH_SECRET")
-	if authSecretEnv != "" {
-		authorizationSecret = authSecretEnv
-	}
 
 	flag.StringVar(&port, "port", "8000", "Server port")
 	flag.StringVar(&proxyURL, "proxy-url", "", "Proxy URL")
 	flag.StringVar(&proxyMethod, "proxy-method", "", "Proxy method")
 	flag.StringVar(&logLevel, "log-level", "", "Log level")
-	flag.StringVar(&authorizationSecret, "auth-secret", "", "Authorization secret")
+	flag.StringVar(&authorizationSecret, "auth-secret", authSecretEnv, "Authorization secret")
 	flag.Parse()
 
 	if proxyURL == "" {
