@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/http/httputil"
 	"strings"
 	"time"
 )
@@ -154,7 +155,21 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Del("Host")
-	req.Header.Del("Content-Length")
+
+	// setting the content length disables chunked transfer encoding,
+	// which is required to make proxy work with Alchemy
+	req.ContentLength = int64(len(requestBody))
+
+	if p.logLevel == "debug" {
+		httpMsg, err := httputil.DumpRequestOut(req, true)
+		if err != nil {
+			fmt.Printf("ERROR ID=%v: %s\n", sessionID, err)
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+
+		fmt.Println(string(httpMsg))
+	}
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
