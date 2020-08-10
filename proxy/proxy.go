@@ -86,6 +86,17 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 		ipAddress = forwardedIP
 	}
 
+	blockedIps := map[string]bool{
+		"201.1.208.133": true,
+	}
+
+	if _, ok := blockedIps[ipAddress]; ok {
+		err := errors.New("Too many requests: Ip address blocked")
+		fmt.Printf("ERROR ID=%v: %s\n", sessionID, err)
+		http.Error(w, "", http.StatusTooManyRequests)
+		return
+	}
+
 	// check base64 encoded bearer token if auth check enabled
 	if p.authorizationSecret != "" {
 		reqToken := r.Header.Get("Authorization")
