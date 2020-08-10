@@ -79,6 +79,13 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	p.sessionID++
 	sessionID := p.sessionID
 
+	ipAddress := r.RemoteAddr
+
+	forwardedIP := r.Header.Get("X-Forwarded-For")
+	if forwardedIP != "" {
+		ipAddress = forwardedIP
+	}
+
 	// check base64 encoded bearer token if auth check enabled
 	if p.authorizationSecret != "" {
 		reqToken := r.Header.Get("Authorization")
@@ -121,7 +128,7 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if p.logLevel == "debug" {
-		fmt.Printf("REQUEST ID=%v: %s [%s] %s %s %s %s\n", sessionID, r.RemoteAddr, time.Now().String(), r.Method, r.URL.String(), r.UserAgent(), string(requestBody))
+		fmt.Printf("REQUEST ID=%v: %s [%s] %s %s %s %s\n", sessionID, ipAddress, time.Now().String(), r.Method, r.URL.String(), r.UserAgent(), string(requestBody))
 	}
 
 	if r.Method == "OPTIONS" {
@@ -200,7 +207,7 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "GET,POST,OPTIONS,PUT,DELETE,PATCH")
 
 	if p.logLevel == "debug" {
-		fmt.Printf("RESPONSE ID=%v: %s [%s] %v %s %s %s\n", sessionID, r.RemoteAddr, time.Now().String(), resp.StatusCode, r.Method, r.URL, body)
+		fmt.Printf("RESPONSE ID=%v: %s [%s] %v %s %s %s\n", sessionID, ipAddress, time.Now().String(), resp.StatusCode, r.Method, r.URL, body)
 	}
 
 	w.WriteHeader(200)
