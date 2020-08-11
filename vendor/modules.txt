@@ -1,0 +1,3 @@
+# go.uber.org/ratelimit v0.1.0
+go.uber.org/ratelimit
+go.uber.org/ratelimit/internal/clock

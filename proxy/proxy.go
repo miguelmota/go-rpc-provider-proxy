@@ -11,6 +11,8 @@ import (
 	"net/http/httputil"
 	"strings"
 	"time"
+
+	"go.uber.org/ratelimit"
 )
 
 // Proxy ...
@@ -25,6 +27,7 @@ type Proxy struct {
 	sessionID           int
 	logLevel            string
 	authorizationSecret string
+	ratelimit           ratelimit.Limiter
 }
 
 // Config ...
@@ -52,6 +55,9 @@ func NewProxy(config *Config) *Proxy {
 		method = strings.ToUpper(config.ProxyMethod)
 	}
 
+	perSecond := 10
+	rl := ratelimit.New(perSecond)
+
 	return &Proxy{
 		port:                port,
 		proxyURL:            config.ProxyURL,
@@ -61,6 +67,7 @@ func NewProxy(config *Config) *Proxy {
 		sessionID:           0,
 		logLevel:            config.LogLevel,
 		authorizationSecret: config.AuthorizationSecret,
+		ratelimit:           rl,
 	}
 }
 
@@ -76,6 +83,7 @@ func (p *Proxy) HealthCheckHandler(w http.ResponseWriter, r *http.Request) {
 
 // ProxyHandler ...
 func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
+	p.ratelimit.Take()
 	p.sessionID++
 	sessionID := p.sessionID
 
