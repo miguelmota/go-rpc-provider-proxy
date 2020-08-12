@@ -50,7 +50,9 @@ func main() {
 	}
 
 	// add blocked IPs here
-	blockedIps := []string{}
+	blockedIps := []string{
+		"70.185.111.46", // this ip keeps hitting hard cap on kovan proxy
+	}
 
 	rpcProxy := proxy.NewProxy(&proxy.Config{
 		ProxyURL:                   proxyURL,
