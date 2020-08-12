@@ -8,7 +8,7 @@ import (
 func TestCache(t *testing.T) {
 	c := NewCache()
 	c.Set("foo", "bar", 1*time.Minute)
-	value, found := c.Get("foo")
+	value, _, found := c.Get("foo")
 	if !found {
 		t.FailNow()
 	}

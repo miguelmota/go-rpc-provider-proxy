@@ -26,6 +26,6 @@ func (c *Cache) Set(key string, value interface{}, expires time.Duration) {
 }
 
 // Get ...
-func (c *Cache) Get(key string) (interface{}, bool) {
-	return c.cache.Get(key)
+func (c *Cache) Get(key string) (interface{}, time.Time, bool) {
+	return c.cache.GetWithExpiration(key)
 }

@@ -143,56 +143,48 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "", http.StatusBadRequest)
 	}
 
+	rateLimitCacheKey := fmt.Sprintf("ratelimit:%s", ipAddress)
+
+	// don't rate limit IPs that are always allowed
 	if _, ok := p.alwaysAllowedIps[ipAddress]; !ok {
 		count := 0
-		cached, found := p.cache.Get(ipAddress)
+		cached, expiration, found := p.cache.Get(rateLimitCacheKey)
 		if found {
 			count = cached.(int)
 		}
 
+		tryAgainInSeconds := expiration.Sub(time.Now()).Seconds()
+
+		// send slack notification on soft cap rate limit reached for IP
 		if count == p.softCapIPRequestsPerMinute {
-			notification := fmt.Sprintf("WARN ID=%v: soft cap reached (%v requests per minute) IP=%s\n", sessionID, count, ipAddress)
+			notification := fmt.Sprintf("WARN ID=%v: soft cap reached (%v req/min) IP=%s\n", sessionID, count, ipAddress)
 			fmt.Printf(notification)
-			if p.slackWebhookURL != "" {
-				err := slack.SendNotification(&slack.SendNotificationInput{
-					WebhookURL: p.slackWebhookURL,
-					Message:    notification,
-					Channel:    p.slackChannel,
-					Username:   "proxy",
-					IconEmoji:  "computer",
-				})
-				if err != nil {
-					fmt.Printf("SLACK ERROR %v\n", err)
-				}
-			}
+			p.sendNotification(notification)
 		}
 
+		// send slack notification on hard cap rate limit reached for IP
 		if count == p.hardCapIPRequestsPerMinute {
-			notification := fmt.Sprintf("NOTICE ID=%v: hard cap reached (%v requests per minute) IP=%s\n", sessionID, count, ipAddress)
-			fmt.Printf(notification)
-			if p.slackWebhookURL != "" {
-				err := slack.SendNotification(&slack.SendNotificationInput{
-					WebhookURL: p.slackWebhookURL,
-					Message:    notification,
-					Channel:    p.slackChannel,
-					Username:   "proxy",
-					IconEmoji:  "computer",
-				})
-				if err != nil {
-					fmt.Printf("SLACK ERROR %v\n", err)
-				}
+			seenCacheKey := fmt.Sprintf("seen:%s", ipAddress)
+			if _, _, found := p.cache.Get(seenCacheKey); !found {
+				notification := fmt.Sprintf("NOTICE ID=%v: hard cap reached (%v req/min) IP=%s\n", sessionID, count, ipAddress)
+				fmt.Printf(notification)
+				p.sendNotification(notification)
+
+				// makes sure that notification is only sent once during rate limit cycle
+				p.cache.Set(seenCacheKey, true, time.Duration(expiration.Unix()-time.Now().Unix())*time.Second)
 			}
 		}
 
+		// prevent request if hard cap rate limit reached for IP
 		if count >= p.hardCapIPRequestsPerMinute {
-			err := errors.New("Too many requests: Rate limit exceeded")
+			err := fmt.Sprintf("Too many requests: Rate limit exceeded. Try again in %.0fs", tryAgainInSeconds)
 			fmt.Printf("ERROR ID=%v: %s IP=%s\n", sessionID, err, ipAddress)
 			http.Error(w, "", http.StatusTooManyRequests)
 			return
 		}
 
 		count++
-		p.cache.Set(ipAddress, count, 1*time.Minute)
+		p.cache.Set(rateLimitCacheKey, count, 1*time.Minute)
 	}
 
 	if _, ok := p.blockedIps[ipAddress]; ok {
@@ -364,4 +356,22 @@ func (p *Proxy) createHTTPClient() (*http.Client, error) {
 	}
 
 	return client, nil
+}
+
+// sendNotification ...
+func (p *Proxy) sendNotification(msg string) {
+	if p.slackWebhookURL == "" {
+		return
+	}
+
+	err := slack.SendNotification(&slack.SendNotificationInput{
+		WebhookURL: p.slackWebhookURL,
+		Message:    msg,
+		Channel:    p.slackChannel,
+		Username:   "proxy",
+		IconEmoji:  "computer",
+	})
+	if err != nil {
+		fmt.Printf("SLACK ERROR %v\n", err)
+	}
 }
