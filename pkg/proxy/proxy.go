@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
 	"strings"
 	"time"
 
@@ -36,7 +37,7 @@ type Config struct {
 // Proxy ...
 type Proxy struct {
 	httpClient                 *http.Client
-	proxyURL                   string
+	proxyURL                   *url.URL
 	proxyMethod                string
 	port                       string
 	maxIdleConnections         int
@@ -100,9 +101,14 @@ func NewProxy(config *Config) *Proxy {
 		hardCapIPRequestsPerMinute = config.HardCapIPRequestsPerMinute
 	}
 
+	proxyURL, err := url.Parse(config.ProxyURL)
+	if err != nil {
+		panic(err)
+	}
+
 	return &Proxy{
 		port:                       port,
-		proxyURL:                   config.ProxyURL,
+		proxyURL:                   proxyURL,
 		proxyMethod:                method,
 		maxIdleConnections:         100,
 		requestTimeout:             3600,
@@ -157,7 +163,7 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 
 		// send slack notification on soft cap rate limit reached for IP
 		if count == p.softCapIPRequestsPerMinute {
-			notification := fmt.Sprintf("⚠️ SOFT cap reached (%v req/min) IP=%s ID=%v\n", count, ipAddress, sessionID)
+			notification := fmt.Sprintf("⚠️ SOFT cap reached (%v req/min) IP=%s PROXY=%s ID=%v\n", count, ipAddress, p.proxyURL.Hostname(), sessionID)
 			fmt.Printf(notification)
 			p.sendNotification(notification)
 		}
@@ -166,7 +172,7 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 		if count == p.hardCapIPRequestsPerMinute {
 			seenCacheKey := fmt.Sprintf("seen:%s", ipAddress)
 			if _, _, found := p.cache.Get(seenCacheKey); !found {
-				notification := fmt.Sprintf("🚫 HARD cap reached (%v req/min) IP=%s ID=%v\n", count, ipAddress, sessionID)
+				notification := fmt.Sprintf("🚫 HARD cap reached (%v req/min) IP=%s PROXY=%s ID=%v\n", count, ipAddress, p.proxyURL.Hostname(), sessionID)
 				fmt.Printf(notification)
 				p.sendNotification(notification)
 
@@ -256,7 +262,7 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req, err := http.NewRequest(p.proxyMethod, p.proxyURL, bodyRdr2)
+	req, err := http.NewRequest(p.proxyMethod, p.proxyURL.String(), bodyRdr2)
 	if err != nil {
 		fmt.Printf("ERROR ID=%v: %s IP=%s\n", sessionID, err, ipAddress)
 		http.Error(w, "", http.StatusInternalServerError)
@@ -336,7 +342,7 @@ func (p *Proxy) Start() error {
 	http.HandleFunc("/health", p.HealthCheckHandler)
 	http.HandleFunc("/", p.ProxyHandler)
 
-	fmt.Printf("Proxying %s %s\n", p.proxyMethod, p.proxyURL)
+	fmt.Printf("Proxying %s %s\n", p.proxyMethod, p.proxyURL.String())
 
 	fmt.Printf("Listening on port %v\n", p.port)
 	fmt.Printf("Leaky bucket limit per second: %v\n", p.leakyBucketLimitPerSecond)
