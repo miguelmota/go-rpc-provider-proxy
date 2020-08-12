@@ -143,6 +143,7 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	p.sessionID++
 	sessionID := p.sessionID
 
+	origin := r.Header.Get("Origin")
 	ipAddress, err := getIP(r)
 	if err != nil {
 		fmt.Printf("ERROR ID=%v: %s\n", sessionID, err)
@@ -170,7 +171,7 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 
 		// send slack notification on soft cap rate limit reached for IP
 		if count == p.softCapIPRequestsPerMinute {
-			notification := fmt.Sprintf("⚠️ SOFT cap reached (%v req/min) IP=%s PROXY=%s ID=%v\n", count, ipAddress, p.proxyURL.Hostname(), sessionID)
+			notification := fmt.Sprintf("⚠️ SOFT cap reached (%v req/min) IP=%s ORIGIN=%s PROXY=%s ID=%v\n", count, ipAddress, origin, p.proxyURL.Hostname(), sessionID)
 			fmt.Printf(notification)
 			p.sendNotification(notification)
 		}
@@ -179,7 +180,7 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 		if count == p.hardCapIPRequestsPerMinute {
 			seenCacheKey := fmt.Sprintf("seen:%s", ipAddress)
 			if _, _, found := p.cache.Get(seenCacheKey); !found {
-				notification := fmt.Sprintf("🚫 HARD cap reached (%v req/min) IP=%s PROXY=%s ID=%v\n", count, ipAddress, p.proxyURL.Hostname(), sessionID)
+				notification := fmt.Sprintf("🚫 HARD cap reached (%v req/min) IP=%s ORIGIN=%s PROXY=%s ID=%v\n", count, ipAddress, origin, p.proxyURL.Hostname(), sessionID)
 				fmt.Printf(notification)
 				p.sendNotification(notification)
 
