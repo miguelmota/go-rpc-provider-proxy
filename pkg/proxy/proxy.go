@@ -83,11 +83,11 @@ func NewProxy(config *Config) *Proxy {
 	blockedIps := make(map[string]bool, len(config.BlockedIps))
 	alwaysAllowedIps := make(map[string]bool, len(config.AlwaysAllowedIps))
 
-	for ip := range blockedIps {
+	for _, ip := range config.BlockedIps {
 		blockedIps[ip] = true
 	}
 
-	for ip := range alwaysAllowedIps {
+	for _, ip := range config.AlwaysAllowedIps {
 		alwaysAllowedIps[ip] = true
 	}
 
@@ -149,6 +149,13 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "", http.StatusBadRequest)
 	}
 
+	if _, ok := p.blockedIps[ipAddress]; ok {
+		err := errors.New("Blocked: Ip address blocked")
+		fmt.Printf("ERROR ID=%v: %s IP=%s\n", sessionID, err, ipAddress)
+		http.Error(w, "", http.StatusTooManyRequests)
+		return
+	}
+
 	rateLimitCacheKey := fmt.Sprintf("ratelimit:%s", ipAddress)
 
 	// don't rate limit IPs that are always allowed
@@ -191,13 +198,6 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 
 		count++
 		p.cache.Set(rateLimitCacheKey, count, 1*time.Minute)
-	}
-
-	if _, ok := p.blockedIps[ipAddress]; ok {
-		err := errors.New("Blocked: Ip address blocked")
-		fmt.Printf("ERROR ID=%v: %s IP=%s\n", sessionID, err, ipAddress)
-		http.Error(w, "", http.StatusTooManyRequests)
-		return
 	}
 
 	// check base64 encoded bearer token if auth check enabled
