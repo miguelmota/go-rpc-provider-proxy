@@ -12,31 +12,43 @@ import (
 	"strings"
 	"time"
 
+	"github.com/authereum/go-rpc-provider-proxy/pkg/cache"
 	"go.uber.org/ratelimit"
 )
 
 // Proxy ...
 type Proxy struct {
-	httpClient          *http.Client
-	proxyURL            string
-	proxyMethod         string
-	port                string
-	maxIdleConnections  int
-	requestTimeout      int
-	method              string
-	sessionID           int
-	logLevel            string
-	authorizationSecret string
-	ratelimit           ratelimit.Limiter
+	httpClient                 *http.Client
+	proxyURL                   string
+	proxyMethod                string
+	port                       string
+	maxIdleConnections         int
+	requestTimeout             int
+	method                     string
+	sessionID                  int
+	logLevel                   string
+	authorizationSecret        string
+	ratelimit                  ratelimit.Limiter
+	blockedIps                 map[string]bool
+	alwaysAllowedIps           map[string]bool
+	cache                      *cache.Cache
+	leakyBucketLimitPerSecond  int
+	softCapIPRequestsPerMinute int
+	hardCapIPRequestsPerMinute int
 }
 
 // Config ...
 type Config struct {
-	ProxyURL            string
-	ProxyMethod         string
-	Port                string
-	LogLevel            string
-	AuthorizationSecret string
+	ProxyURL                   string
+	ProxyMethod                string
+	Port                       string
+	LogLevel                   string
+	AuthorizationSecret        string
+	BlockedIps                 []string
+	AlwaysAllowedIps           []string
+	LeakyBucketLimitPerSecond  int
+	SoftCapIPRequestsPerMinute int
+	HardCapIPRequestsPerMinute int
 }
 
 // NewProxy ...
@@ -55,19 +67,50 @@ func NewProxy(config *Config) *Proxy {
 		method = strings.ToUpper(config.ProxyMethod)
 	}
 
-	perSecond := 10
-	rl := ratelimit.New(perSecond)
+	lps := 10
+	if config.LeakyBucketLimitPerSecond != 0 {
+		lps = config.LeakyBucketLimitPerSecond
+	}
+	rl := ratelimit.New(lps)
+	cache := cache.NewCache()
+
+	blockedIps := make(map[string]bool, len(config.BlockedIps))
+	alwaysAllowedIps := make(map[string]bool, len(config.AlwaysAllowedIps))
+
+	for ip := range blockedIps {
+		blockedIps[ip] = true
+	}
+
+	for ip := range alwaysAllowedIps {
+		alwaysAllowedIps[ip] = true
+	}
+
+	softCapIPRequestsPerMinute := 100
+	if config.SoftCapIPRequestsPerMinute != 0 {
+		softCapIPRequestsPerMinute = config.SoftCapIPRequestsPerMinute
+	}
+
+	hardCapIPRequestsPerMinute := 1000
+	if config.HardCapIPRequestsPerMinute != 0 {
+		hardCapIPRequestsPerMinute = config.HardCapIPRequestsPerMinute
+	}
 
 	return &Proxy{
-		port:                port,
-		proxyURL:            config.ProxyURL,
-		proxyMethod:         method,
-		maxIdleConnections:  100,
-		requestTimeout:      3600,
-		sessionID:           0,
-		logLevel:            config.LogLevel,
-		authorizationSecret: config.AuthorizationSecret,
-		ratelimit:           rl,
+		port:                       port,
+		proxyURL:                   config.ProxyURL,
+		proxyMethod:                method,
+		maxIdleConnections:         100,
+		requestTimeout:             3600,
+		sessionID:                  0,
+		logLevel:                   config.LogLevel,
+		authorizationSecret:        config.AuthorizationSecret,
+		ratelimit:                  rl,
+		blockedIps:                 blockedIps,
+		alwaysAllowedIps:           alwaysAllowedIps,
+		cache:                      cache,
+		leakyBucketLimitPerSecond:  lps,
+		softCapIPRequestsPerMinute: softCapIPRequestsPerMinute,
+		hardCapIPRequestsPerMinute: hardCapIPRequestsPerMinute,
 	}
 }
 
@@ -87,20 +130,37 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	p.sessionID++
 	sessionID := p.sessionID
 
-	ipAddress := r.RemoteAddr
-
-	forwardedIP := r.Header.Get("X-Forwarded-For")
-	if forwardedIP != "" {
-		ipAddress = forwardedIP
-	}
-
-	blockedIps := map[string]bool{
-		"201.1.208.133": true,
-	}
-
-	if _, ok := blockedIps[ipAddress]; ok {
-		err := errors.New("Too many requests: Ip address blocked")
+	ipAddress, err := getIP(r)
+	if err != nil {
 		fmt.Printf("ERROR ID=%v: %s\n", sessionID, err)
+		http.Error(w, "", http.StatusBadRequest)
+	}
+
+	if _, ok := p.alwaysAllowedIps[ipAddress]; !ok {
+		count := 0
+		cached, found := p.cache.Get(ipAddress)
+		if found {
+			count = cached.(int)
+		}
+
+		if count == p.softCapIPRequestsPerMinute {
+			fmt.Printf("WARN ID=%v: soft cap reached IP=%s\n", sessionID, ipAddress)
+		}
+
+		if count >= p.hardCapIPRequestsPerMinute {
+			err := errors.New("Too many requests: Rate limit exceeded")
+			fmt.Printf("ERROR ID=%v: %s IP=%s\n", sessionID, err, ipAddress)
+			http.Error(w, "", http.StatusTooManyRequests)
+			return
+		}
+
+		count++
+		p.cache.Set(ipAddress, count, 1*time.Minute)
+	}
+
+	if _, ok := p.blockedIps[ipAddress]; ok {
+		err := errors.New("Blocked: Ip address blocked")
+		fmt.Printf("ERROR ID=%v: %s IP=%s\n", sessionID, err, ipAddress)
 		http.Error(w, "", http.StatusTooManyRequests)
 		return
 	}
@@ -111,7 +171,7 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 		splitToken := strings.Split(reqToken, "Bearer")
 		if (len(splitToken)) != 2 {
 			err := errors.New("Unauthorized: Auth token is required")
-			fmt.Printf("ERROR ID=%v: %s\n", sessionID, err)
+			fmt.Printf("ERROR ID=%v: %s IP=%s\n", sessionID, err, ipAddress)
 			http.Error(w, "", http.StatusUnauthorized)
 			return
 		}
@@ -119,7 +179,7 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 		reqToken = strings.TrimSpace(splitToken[1])
 		decoded, err := base64.StdEncoding.DecodeString(reqToken)
 		if err != nil {
-			fmt.Printf("ERROR ID=%v: %s\n", sessionID, err)
+			fmt.Printf("ERROR ID=%v: %s IP=%s\n", sessionID, err, ipAddress)
 			http.Error(w, "", http.StatusUnauthorized)
 			return
 		}
@@ -127,7 +187,7 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 		decodedToken := string(decoded)
 		if p.authorizationSecret != decodedToken {
 			err := errors.New("Unauthorized: Invalid auth token")
-			fmt.Printf("ERROR ID=%v: %s\n", sessionID, err)
+			fmt.Printf("ERROR ID=%v: %s IP=%s\n", sessionID, err, ipAddress)
 			http.Error(w, "", http.StatusUnauthorized)
 			return
 		}
@@ -141,7 +201,7 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 
 	requestBody, err := ioutil.ReadAll(bodyRdr1)
 	if err != nil {
-		fmt.Printf("ERROR ID=%v: %s\n", sessionID, err)
+		fmt.Printf("ERROR ID=%v: %s %s\n", sessionID, err, ipAddress)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -169,7 +229,7 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 
 	req, err := http.NewRequest(p.proxyMethod, p.proxyURL, bodyRdr2)
 	if err != nil {
-		fmt.Printf("ERROR ID=%v: %s\n", sessionID, err)
+		fmt.Printf("ERROR ID=%v: %s IP=%s\n", sessionID, err, ipAddress)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -189,7 +249,7 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	if p.logLevel == "debug" {
 		httpMsg, err := httputil.DumpRequestOut(req, true)
 		if err != nil {
-			fmt.Printf("ERROR ID=%v: %s\n", sessionID, err)
+			fmt.Printf("ERROR ID=%v: %s IP=%s\n", sessionID, err, ipAddress)
 			http.Error(w, "", http.StatusInternalServerError)
 			return
 		}
@@ -199,7 +259,7 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
-		fmt.Printf("ERROR ID=%v: %s\n", sessionID, err)
+		fmt.Printf("ERROR ID=%v: %s %s\n", sessionID, err, ipAddress)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -211,7 +271,7 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(resp.Body)
 
 	if err != nil {
-		fmt.Printf("ERROR ID=%v: %s\n", sessionID, err)
+		fmt.Printf("ERROR ID=%v: %s IP=%s\n", sessionID, err, ipAddress)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -249,7 +309,10 @@ func (p *Proxy) Start() error {
 
 	fmt.Printf("Proxying %s %s\n", p.proxyMethod, p.proxyURL)
 
-	fmt.Println("Listening on port " + p.port)
+	fmt.Printf("Listening on port %v\n", p.port)
+	fmt.Printf("Leaky bucket limit per second: %v\n", p.leakyBucketLimitPerSecond)
+	fmt.Printf("Soft cap requests per minute for IP: %v\n", p.softCapIPRequestsPerMinute)
+	fmt.Printf("Hard cap requests per minute for IP: %v\n", p.hardCapIPRequestsPerMinute)
 	return http.ListenAndServe(host, nil)
 }
 

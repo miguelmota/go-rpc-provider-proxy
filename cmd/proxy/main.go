@@ -4,7 +4,7 @@ import (
 	"flag"
 	"os"
 
-	proxy "github.com/authereum/go-rpc-provider-proxy/proxy"
+	"github.com/authereum/go-rpc-provider-proxy/pkg/proxy"
 )
 
 func main() {
@@ -13,6 +13,9 @@ func main() {
 	var proxyMethod string
 	var logLevel string
 	var authorizationSecret string
+	var leakyBucketLimitPerSecond int
+	var softCapIPRequestsPerMinute int
+	var hardCapIPRequestsPerMinute int
 
 	portEnv := os.Getenv("PORT")
 	if portEnv != "" {
@@ -26,18 +29,36 @@ func main() {
 	flag.StringVar(&proxyMethod, "proxy-method", "", "Proxy method")
 	flag.StringVar(&logLevel, "log-level", "", "Log level")
 	flag.StringVar(&authorizationSecret, "auth-secret", authSecretEnv, "Authorization secret")
+	flag.IntVar(&leakyBucketLimitPerSecond, "limit-per-second", leakyBucketLimitPerSecond, "Leaky bucket limit per second")
+	flag.IntVar(&softCapIPRequestsPerMinute, "soft-cap-ip-requests-per-minute", softCapIPRequestsPerMinute, "Soft cap requests per minute for IP")
+	flag.IntVar(&hardCapIPRequestsPerMinute, "hard-cap-ip-requests-per-minute", hardCapIPRequestsPerMinute, "Hard cap requests per minute for IP")
 	flag.Parse()
 
 	if proxyURL == "" {
 		panic("Flag -proxy-url is required")
 	}
 
+	// add always allowed IPs here
+	alwaysAllowedIps := []string{
+		"3.215.160.175", // dev server
+		"34.193.216.56", // production server
+		"127.0.0.1",
+	}
+
+	// add blocked IPs here
+	blockedIps := []string{}
+
 	rpcProxy := proxy.NewProxy(&proxy.Config{
-		ProxyURL:            proxyURL,
-		ProxyMethod:         proxyMethod,
-		Port:                port,
-		LogLevel:            logLevel,
-		AuthorizationSecret: authorizationSecret,
+		ProxyURL:                   proxyURL,
+		ProxyMethod:                proxyMethod,
+		Port:                       port,
+		LogLevel:                   logLevel,
+		AuthorizationSecret:        authorizationSecret,
+		BlockedIps:                 blockedIps,
+		AlwaysAllowedIps:           alwaysAllowedIps,
+		LeakyBucketLimitPerSecond:  leakyBucketLimitPerSecond,
+		SoftCapIPRequestsPerMinute: softCapIPRequestsPerMinute,
+		HardCapIPRequestsPerMinute: hardCapIPRequestsPerMinute,
 	})
 
 	panic(rpcProxy.Start())
