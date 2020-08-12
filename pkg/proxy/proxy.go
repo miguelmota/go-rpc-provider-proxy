@@ -13,8 +13,25 @@ import (
 	"time"
 
 	"github.com/authereum/go-rpc-provider-proxy/pkg/cache"
+	"github.com/authereum/go-rpc-provider-proxy/pkg/slack"
 	"go.uber.org/ratelimit"
 )
+
+// Config ...
+type Config struct {
+	ProxyURL                   string
+	ProxyMethod                string
+	Port                       string
+	LogLevel                   string
+	AuthorizationSecret        string
+	BlockedIps                 []string
+	AlwaysAllowedIps           []string
+	LeakyBucketLimitPerSecond  int
+	SoftCapIPRequestsPerMinute int
+	HardCapIPRequestsPerMinute int
+	SlackWebhookURL            string
+	SlackChannel               string
+}
 
 // Proxy ...
 type Proxy struct {
@@ -35,20 +52,8 @@ type Proxy struct {
 	leakyBucketLimitPerSecond  int
 	softCapIPRequestsPerMinute int
 	hardCapIPRequestsPerMinute int
-}
-
-// Config ...
-type Config struct {
-	ProxyURL                   string
-	ProxyMethod                string
-	Port                       string
-	LogLevel                   string
-	AuthorizationSecret        string
-	BlockedIps                 []string
-	AlwaysAllowedIps           []string
-	LeakyBucketLimitPerSecond  int
-	SoftCapIPRequestsPerMinute int
-	HardCapIPRequestsPerMinute int
+	slackWebhookURL            string
+	slackChannel               string
 }
 
 // NewProxy ...
@@ -111,6 +116,8 @@ func NewProxy(config *Config) *Proxy {
 		leakyBucketLimitPerSecond:  lps,
 		softCapIPRequestsPerMinute: softCapIPRequestsPerMinute,
 		hardCapIPRequestsPerMinute: hardCapIPRequestsPerMinute,
+		slackWebhookURL:            config.SlackWebhookURL,
+		slackChannel:               config.SlackChannel,
 	}
 }
 
@@ -144,7 +151,37 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if count == p.softCapIPRequestsPerMinute {
-			fmt.Printf("WARN ID=%v: soft cap reached IP=%s\n", sessionID, ipAddress)
+			notification := fmt.Sprintf("WARN ID=%v: soft cap reached (%v requests per minute) IP=%s\n", sessionID, count, ipAddress)
+			fmt.Printf(notification)
+			if p.slackWebhookURL != "" {
+				err := slack.SendNotification(&slack.SendNotificationInput{
+					WebhookURL: p.slackWebhookURL,
+					Message:    notification,
+					Channel:    p.slackChannel,
+					Username:   "proxy",
+					IconEmoji:  "computer",
+				})
+				if err != nil {
+					fmt.Printf("SLACK ERROR %v\n", err)
+				}
+			}
+		}
+
+		if count == p.hardCapIPRequestsPerMinute {
+			notification := fmt.Sprintf("NOTICE ID=%v: hard cap reached (%v requests per minute) IP=%s\n", sessionID, count, ipAddress)
+			fmt.Printf(notification)
+			if p.slackWebhookURL != "" {
+				err := slack.SendNotification(&slack.SendNotificationInput{
+					WebhookURL: p.slackWebhookURL,
+					Message:    notification,
+					Channel:    p.slackChannel,
+					Username:   "proxy",
+					IconEmoji:  "computer",
+				})
+				if err != nil {
+					fmt.Printf("SLACK ERROR %v\n", err)
+				}
+			}
 		}
 
 		if count >= p.hardCapIPRequestsPerMinute {

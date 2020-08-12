@@ -16,6 +16,8 @@ func main() {
 	var leakyBucketLimitPerSecond int
 	var softCapIPRequestsPerMinute int
 	var hardCapIPRequestsPerMinute int
+	var slackWebhookURL string
+	var slackChannel string
 
 	portEnv := os.Getenv("PORT")
 	if portEnv != "" {
@@ -32,6 +34,8 @@ func main() {
 	flag.IntVar(&leakyBucketLimitPerSecond, "limit-per-second", leakyBucketLimitPerSecond, "Leaky bucket limit per second")
 	flag.IntVar(&softCapIPRequestsPerMinute, "soft-cap-ip-requests-per-minute", softCapIPRequestsPerMinute, "Soft cap requests per minute for IP")
 	flag.IntVar(&hardCapIPRequestsPerMinute, "hard-cap-ip-requests-per-minute", hardCapIPRequestsPerMinute, "Hard cap requests per minute for IP")
+	flag.StringVar(&slackWebhookURL, "slack-webhook-url", slackWebhookURL, "Slack Webhook URL")
+	flag.StringVar(&slackChannel, "slack-channel", slackChannel, "Slack channel for notifications")
 	flag.Parse()
 
 	if proxyURL == "" {
@@ -59,6 +63,8 @@ func main() {
 		LeakyBucketLimitPerSecond:  leakyBucketLimitPerSecond,
 		SoftCapIPRequestsPerMinute: softCapIPRequestsPerMinute,
 		HardCapIPRequestsPerMinute: hardCapIPRequestsPerMinute,
+		SlackWebhookURL:            slackWebhookURL,
+		SlackChannel:               slackChannel,
 	})
 
 	panic(rpcProxy.Start())
