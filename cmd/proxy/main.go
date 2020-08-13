@@ -44,8 +44,11 @@ func main() {
 
 	// add always allowed IPs here
 	alwaysAllowedIps := []string{
-		"3.215.160.175", // dev server
-		"34.193.216.56", // production server
+		"3.215.160.175",  // dev server
+		"34.193.216.56",  // production server
+		"47.147.201.15",  // miguel
+		"47.147.192.199", // miguel
+		"172.114.143.76", // chris
 		"127.0.0.1",
 	}
 
