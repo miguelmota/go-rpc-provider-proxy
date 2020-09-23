@@ -73,7 +73,7 @@ func NewProxy(config *Config) *Proxy {
 		method = strings.ToUpper(config.ProxyMethod)
 	}
 
-	lps := 10
+	lps := 100
 	if config.LeakyBucketLimitPerSecond != 0 {
 		lps = config.LeakyBucketLimitPerSecond
 	}
@@ -142,6 +142,7 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	p.ratelimit.Take()
 	p.sessionID++
 	sessionID := p.sessionID
+	defer r.Body.Close()
 
 	origin := r.Header.Get("Origin")
 	ipAddress, err := getIP(r)
@@ -305,7 +306,6 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 
 	// response body
 	body, err := ioutil.ReadAll(resp.Body)
-
 	if err != nil {
 		fmt.Printf("ERROR ID=%v: %s IP=%s\n", sessionID, err, ipAddress)
 		http.Error(w, "", http.StatusInternalServerError)
@@ -355,6 +355,7 @@ func (p *Proxy) Start() error {
 func (p *Proxy) createHTTPClient() (*http.Client, error) {
 	transport := &http.Transport{
 		MaxIdleConnsPerHost: p.maxIdleConnections,
+		DisableKeepAlives:   true,
 	}
 
 	client := &http.Client{

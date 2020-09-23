@@ -27,6 +27,14 @@ bXlzZWNyZXQ=
 $ curl http://localhost:8000 -X POST -H "content-type: application/json" -H "Authorization: Bearer bXlzZWNyZXQ=" -d '{"method":"eth_getCode","params":["0xf2b139bd79e08f9273e6a3dc2702051e1b16cdf8","latest"],"id":13009,"jsonrpc":"2.0"}'
 ```
 
+## Test
+
+Run load testing script:
+
+```bash
+make loadtest INFURA_ID=7cae............................
+```
+
 ## Development
 
 Build and push docker image to registry:
