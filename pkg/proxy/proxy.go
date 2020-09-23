@@ -134,7 +134,35 @@ func (p *Proxy) PingHandler(w http.ResponseWriter, r *http.Request) {
 
 // HealthCheckHandler ...
 func (p *Proxy) HealthCheckHandler(w http.ResponseWriter, r *http.Request) {
-	io.WriteString(w, "OK")
+	payload := []byte(`{"jsonrpc":"2.0","method":"web3_clientVersion","params":[],"id":42}`)
+	url := fmt.Sprintf("http://127.0.0.1:%v", p.port)
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payload))
+	if err != nil {
+		err := fmt.Sprintf("Health check error: %s", err.Error())
+		http.Error(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		err := fmt.Sprintf("Health check error: %s", err.Error())
+		http.Error(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		err := fmt.Sprintf("Health check error: got status code %v", resp.StatusCode)
+		http.Error(w, err, resp.StatusCode)
+		return
+	}
+
+	w.WriteHeader(200)
+	w.Write([]byte("OK"))
 }
 
 // ProxyHandler ...
@@ -346,7 +374,7 @@ func (p *Proxy) Start() error {
 
 	p.httpClient = httpClient
 
-	host := "0.0.0.0:" + p.port
+	host := fmt.Sprintf("0.0.0.0:%v", p.port)
 	http.HandleFunc("/ping", p.PingHandler)
 	http.HandleFunc("/health", p.HealthCheckHandler)
 	http.HandleFunc("/", p.ProxyHandler)
