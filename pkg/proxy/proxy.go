@@ -142,6 +142,8 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	p.ratelimit.Take()
 	p.sessionID++
 	sessionID := p.sessionID
+
+	r.Close = true
 	defer r.Body.Close()
 
 	origin := r.Header.Get("Origin")
@@ -271,11 +273,17 @@ func (p *Proxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Close request after sending request and reading response
+	req.Close = true
+	defer req.Body.Close()
+
 	// copy headers to request
 	for k, v := range r.Header {
 		req.Header.Set(k, v[0])
 	}
 
+	// Connection header informs server that client wants to close connection after response.
+	req.Header.Set("Connection", "close")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Del("Host")
 
