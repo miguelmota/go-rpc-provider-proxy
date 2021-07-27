@@ -385,6 +385,9 @@ func (p *Proxy) Start() error {
 	fmt.Printf("Leaky bucket limit per second: %v\n", p.leakyBucketLimitPerSecond)
 	fmt.Printf("Soft cap requests per minute for IP: %v\n", p.softCapIPRequestsPerMinute)
 	fmt.Printf("Hard cap requests per minute for IP: %v\n", p.hardCapIPRequestsPerMinute)
+	if p.logLevel != "" {
+		fmt.Printf("Log Level: %s\n", p.logLevel)
+	}
 	return http.ListenAndServe(host, nil)
 }
 
