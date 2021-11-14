@@ -4,7 +4,7 @@ import (
 	"flag"
 	"os"
 
-	"github.com/authereum/go-rpc-provider-proxy/pkg/proxy"
+	"github.com/miguelmota/go-rpc-provider-proxy/pkg/proxy"
 )
 
 func main() {

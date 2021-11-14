@@ -6,8 +6,8 @@
 
 ```bash
 # terminal 1
-$ go run cmd/proxy/main.go -proxy-url="https://kovan.rpc.authereum.com" -proxy-method=POST -port=8000
-Proxying POST https://kovan.rpc.authereum.com/
+$ go run cmd/proxy/main.go -proxy-url="https://kovan.infura.io/v3/84842078b09946638c03157f83405213" -proxy-method=POST -port=8000
+Proxying POST https://kovan.infura.io/v3/84842078b09946638c03157f83405213
 Listening on port 8000
 
 # terminal 2
@@ -18,7 +18,7 @@ Authorization header example:
 
 ```bash
 # terminal 1
-$ go run cmd/proxy/main.go -proxy-url="https://kovan.rpc.authereum.com" -proxy-method=POST -port=8000 -auth-secret=mysecret
+$ go run cmd/proxy/main.go -proxy-url="https://kovan.infura.io/v3/84842078b09946638c03157f83405213" -proxy-method=POST -port=8000 -auth-secret=mysecret
 
 # terminal 2
 $ echo -n mysecret | openssl base64
@@ -32,7 +32,7 @@ $ curl http://localhost:8000 -X POST -H "content-type: application/json" -H "Aut
 Run load testing script:
 
 ```bash
-make loadtest INFURA_ID=7cae............................
+make loadtest
 ```
 
 ## Development

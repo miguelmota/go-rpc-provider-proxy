@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/authereum/go-rpc-provider-proxy/pkg/cache"
-	"github.com/authereum/go-rpc-provider-proxy/pkg/slack"
+	"github.com/miguelmota/go-rpc-provider-proxy/pkg/cache"
+	"github.com/miguelmota/go-rpc-provider-proxy/pkg/slack"
 	"go.uber.org/ratelimit"
 )
 

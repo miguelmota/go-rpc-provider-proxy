@@ -1,4 +1,4 @@
-module github.com/authereum/go-rpc-provider-proxy
+module github.com/miguelmota/go-rpc-provider-proxy
 
 go 1.13
 
